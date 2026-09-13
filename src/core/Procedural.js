@@ -158,7 +158,7 @@ const SLOGANS = [
   'المقاومة ستنتصر'
 ];
 
-const ARABIC_FONT = "'Segoe UI', Tahoma, 'Arial', sans-serif";
+const ARABIC_FONT = "'Times New Roman', Times, serif";
 
 export function arabicSloganTexture(slogan) {
   const S = 512;
