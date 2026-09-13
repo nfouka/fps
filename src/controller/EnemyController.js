@@ -1,10 +1,6 @@
 import { Spawner } from '../model/Spawner.js';
+import { groundY, BOUNDS } from '../core/Level.js';
 import { pushOut } from './PlayerController.js';
-
-const EDGE = 4.05;
-const SZ = 27;
-const SH = 1.6;
-const EYE = 1.65;
 
 export class EnemyController {
   constructor(state, bus, collidables) {
@@ -44,17 +40,48 @@ export class EnemyController {
         continue;
       }
 
+      // --- ranged (armed) zombies: keep distance and shoot ---
+      if (e.armed) {
+        e.atkT += dt;
+        const dx0 = p.x - e.pos.x, dz0 = p.z - e.pos.z;
+        const d0 = Math.hypot(dx0, dz0);
+        e.yaw = Math.atan2(dx0, dz0);
+        if (d0 > 2.5) {
+          // advance toward the player without charging into melee
+          const tx = p.x, tz = p.z;
+          const ddx = tx - e.pos.x, ddz = tz - e.pos.z;
+          const dl = Math.hypot(ddx, ddz) || 1;
+          e.pos.x += (ddx / dl) * e.speed * 0.85 * dt;
+          e.pos.z += (ddz / dl) * e.speed * 0.85 * dt;
+        }
+        if (!e.atkHit && e.atkT > e.fireRate) {
+          e.atkHit = true;
+          e.atkT = 0;
+          if (d0 < 30) {
+            st.player.damage(e.dmg);
+            this.bus.emit('playerHit', { dmg: e.dmg, from: e });
+            this.bus.emit('enemyShot', {
+              a: { x: e.pos.x, y: e.pos.y + 1.1, z: e.pos.z },
+              b: { x: p.x, y: p.y, z: p.z }
+            });
+            this.bus.emit('enemyFlash', { x: e.pos.x, y: e.pos.y + 1.1, z: e.pos.z - 0.35 });
+          }
+        }
+        continue;
+      }
+
+      // --- melee zombies: chase and bite when glued ---
       if (e.state === 'attack') {
         e.atkT += dt;
         const dx0 = p.x - e.pos.x, dz0 = p.z - e.pos.z;
         const d0 = Math.hypot(dx0, dz0);
         e.yaw = Math.atan2(dx0, dz0);
-        if (!e.atkHit && e.atkT > 0.45) {
+        if (!e.atkHit && e.atkT > 0.38) {
           e.atkHit = true;
           st.player.damage(e.dmg);
           this.bus.emit('playerHit', { dmg: e.dmg });
         }
-        if (e.atkT > 1.0 || d0 > 2.2) {
+        if (e.atkT > 0.85 || d0 > 2.4) {
           e.state = 'chase';
           e.atkT = 0;
           e.atkHit = false;
@@ -62,26 +89,8 @@ export class EnemyController {
         continue;
       }
 
-      const ax = Math.abs(e.pos.x);
-      const onTrack = ax > EDGE;
-      const pFeet = p.y - EYE;
-      const playerOnTrack = pFeet < -0.6;
-      let tx, tz;
-      if (onTrack && !playerOnTrack) {
-        const sx = Math.sign(e.pos.x);
-        const sz = e.pos.z >= 0 ? SZ : -SZ;
-        if (Math.abs(e.pos.z - sz) < SH) {
-          tx = 3.6 * sx;
-          tz = e.pos.z;
-        } else {
-          tx = 5.2 * sx;
-          tz = sz;
-        }
-      } else {
-        tx = p.x;
-        tz = p.z;
-      }
-
+      // --- chase ---
+      const tx = p.x, tz = p.z;
       let dx = tx - e.pos.x, dz = tz - e.pos.z;
       const dl = Math.hypot(dx, dz) || 1;
       let vx = (dx / dl) * e.speed;
@@ -100,39 +109,88 @@ export class EnemyController {
 
       e.pos.x += vx * dt;
       e.pos.z += vz * dt;
+      e.pos.x = Math.max(-BOUNDS.x, Math.min(BOUNDS.x, e.pos.x));
+      e.pos.z = Math.max(-BOUNDS.z, Math.min(BOUNDS.z, e.pos.z));
 
-      const ax2 = Math.abs(e.pos.x);
-      const sz2 = e.pos.z >= 0 ? SZ : -SZ;
-      const inStair = Math.abs(e.pos.z - sz2) < SH + 0.35;
-      if (ax2 <= 3.95) {
-        e.pos.y = 0;
-      } else if (ax2 >= 6.0) {
-        e.pos.y = -1.2;
-      } else if (inStair) {
-        e.pos.y = -1.2 * ((ax2 - 3.95) / 2.05);
-      } else {
-        e.pos.x = EDGE * Math.sign(e.pos.x);
-        e.pos.y = -1.2;
-      }
+      // Follow the level height field so enemies climb ramps and drop to the
+      // tracks exactly like the player — they can follow you up and down.
+      e.pos.y = groundY(e.pos.x, e.pos.z);
 
-      e.pos.x = Math.max(-7.5, Math.min(7.5, e.pos.x));
-      e.pos.z = Math.max(-33.5, Math.min(33.5, e.pos.z));
       pushOut(e.pos, 0.3, this.cols, 'enemy', e.pos.y);
+      e.pos.x = Math.max(-BOUNDS.x, Math.min(BOUNDS.x, e.pos.x));
+      e.pos.z = Math.max(-BOUNDS.z, Math.min(BOUNDS.z, e.pos.z));
 
       e.walkPhase += dt * e.speed * 2.4;
+      e.yaw = Math.atan2(vx, vz);
 
-      if (onTrack) {
-        e.yaw = Math.atan2(vx, vz);
-      } else {
-        e.yaw = Math.atan2(p.x - e.pos.x, p.z - e.pos.z);
-      }
-
+      // Attack as soon as the zombie is glued to the player, regardless of the
+      // small height difference on the ramps — it always threatens when close.
       const pdx = p.x - e.pos.x, pdz = p.z - e.pos.z;
       const dist = Math.hypot(pdx, pdz);
-      if (dist < 1.55 && Math.abs(pFeet - e.pos.y) < 1.0) {
+      if (dist < 1.5) {
         e.state = 'attack';
         e.atkT = 0;
         e.atkHit = false;
+      }
+    }
+
+    // --- projectiles (bazooka rockets): physics + AoE ---
+    const PROJ_SPEED = 32;
+    const inBox = (px, py, pz, b) =>
+      px >= b.minX && px <= b.maxX && py >= b.minY && py <= b.maxY && pz >= b.minZ && pz <= b.maxZ;
+    for (let i = this.state.projectiles.length - 1; i >= 0; i--) {
+      const pr = this.state.projectiles[i];
+      pr.life -= dt;
+      pr.x += pr.dx * PROJ_SPEED * dt;
+      pr.y += pr.dy * PROJ_SPEED * dt;
+      pr.z += pr.dz * PROJ_SPEED * dt;
+      let exploded = pr.life <= 0;
+      if (!exploded) {
+        for (const e of st.enemies) {
+          if (e.state === 'dying' || e.state === 'spawn') continue;
+          if (Math.hypot(e.pos.x - pr.x, e.pos.z - pr.z) < 1.3 && Math.abs(e.pos.y + 1 - pr.y) < 1.5) { exploded = true; break; }
+        }
+      }
+      if (!exploded) {
+        for (const b of this.cols) {
+          if (inBox(pr.x, pr.y, pr.z, b)) { exploded = true; break; }
+        }
+      }
+      if (exploded) {
+        if (pr.napalm) {
+          const gy = groundY(pr.x, pr.z);
+          this.state.firePools.push({
+            x: pr.x, y: Math.max(pr.y, gy + 0.06), z: pr.z,
+            radius: pr.radius, life: pr.poolLife, max: pr.poolLife,
+            dmgPerSec: pr.dmgPerSec, tick: 0
+          });
+          this.bus.emit('napalmImpact', { x: pr.x, y: pr.y, z: pr.z });
+        } else {
+          for (const e of st.enemies) {
+            if (e.state === 'dying' || e.state === 'spawn') continue;
+            const d = Math.hypot(e.pos.x - pr.x, e.pos.z - pr.z, e.pos.y + 1 - pr.y);
+            if (d < pr.radius) e.damage(pr.dmg * (1 - d / pr.radius * 0.5));
+          }
+          this.bus.emit('explosion', { x: pr.x, y: pr.y, z: pr.z, r: pr.radius });
+        }
+        this.state.projectiles.splice(i, 1);
+      }
+    }
+
+    // --- fire pools (napalm) : flammes persistantes, dégâts dans le temps ---
+    for (let i = st.firePools.length - 1; i >= 0; i--) {
+      const fp = st.firePools[i];
+      fp.life -= dt;
+      fp.tick -= dt;
+      if (fp.life <= 0) { st.firePools.splice(i, 1); continue; }
+      if (fp.tick <= 0) {
+        fp.tick = 0.25;
+        for (const e of st.enemies) {
+          if (e.state === 'dying' || e.state === 'spawn') continue;
+          if (Math.hypot(e.pos.x - fp.x, e.pos.z - fp.z) < fp.radius) {
+            e.damage(fp.dmgPerSec * 0.25);
+          }
+        }
       }
     }
 
@@ -140,7 +198,7 @@ export class EnemyController {
     if (this.growlT <= 0) {
       let near = false;
       for (const e of st.enemies) {
-        if (e.state !== 'chase') continue;
+        if (e.state !== 'chase' && e.state !== 'attack') continue;
         const dx = e.pos.x - p.x, dz = e.pos.z - p.z;
         if (dx * dx + dz * dz < 324) { near = true; break; }
       }

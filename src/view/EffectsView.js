@@ -51,6 +51,95 @@ export class EffectsView {
     this.bloodPoints.frustumCulled = false;
     scene.add(this.bloodPoints);
     this.bloods = [];
+
+    // --- explosions (bazooka) ---
+    this.explTex = new THREE.SpriteMaterial({
+      map: P.burstTexture(),
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+      color: 0xffb066
+    });
+    this.explosions = [];
+    for (let i = 0; i < 10; i++) {
+      const s = new THREE.Sprite(this.explTex);
+      s.visible = false;
+      s.renderOrder = -1;
+      scene.add(s);
+      this.explosions.push({ s, life: 0 });
+    }
+
+    // --- flammes napalm au sol ---
+    this.napalmTex = new THREE.SpriteMaterial({
+      map: P.burstTexture(),
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+      color: 0xff5a1a
+    });
+    this.napalmPools = [];
+    for (let i = 0; i < 12; i++) {
+      const s = new THREE.Sprite(this.napalmTex);
+      s.visible = false;
+      s.renderOrder = -1;
+      scene.add(s);
+      this.napalmPools.push({ s, life: 0 });
+    }
+    this.napalmT = 0;
+
+    // --- muzzle flashes ---
+    this.flashTex = new THREE.SpriteMaterial({
+      map: P.burstTexture(),
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+      color: 0xffd080
+    });
+    this.flashes = [];
+    for (let i = 0; i < 16; i++) {
+      const s = new THREE.Sprite(this.flashTex);
+      s.visible = false;
+      s.renderOrder = 1;
+      scene.add(s);
+      this.flashes.push({ s, life: 0 });
+    }
+  }
+
+  muzzleFlash(x, y, z) {
+    const f = this.flashes.find((f) => f.life <= 0);
+    if (!f) return;
+    f.s.position.set(x, y, z);
+    f.s.material.opacity = 1;
+    f.s.material.color.setHex(0xffd080);
+    f.s.scale.set(0.9, 0.9, 1);
+    f.s.rotation.x = Math.random() * Math.PI;
+    f.s.rotation.y = Math.random() * Math.PI;
+    f.life = 0.06;
+    f.s.visible = true;
+  }
+
+  explosion(x, y, z, r) {
+    const e = this.explosions.find((e) => e.life <= 0);
+    if (!e) return;
+    e.s.position.set(x, y, z);
+    e.s.material.opacity = 1;
+    e.s.material.color.setHex(0xffc47a);
+    e.radius = r;
+    e.maxLife = 0.32;
+    e.life = 0.32;
+    e.s.visible = true;
+  }
+
+  napalmPool(x, y, z, r) {
+    const p = this.napalmPools.find((p) => p.life <= 0);
+    if (!p) return;
+    p.s.position.set(x, y + 0.22, z);
+    p.s.material.opacity = 1;
+    p.s.material.color.setHex(0xff5a1a);
+    p.radius = r;
+    p.maxLife = 0.35;
+    p.life = 0.35;
+    p.s.visible = true;
   }
 
   impact(pos, normal) {
@@ -95,12 +184,49 @@ export class EffectsView {
     }
   }
 
-  update(dt) {
+  update(dt, firePools) {
     for (const t of this.tracers) {
       if (t.life > 0) {
         t.life -= dt;
         t.line.material.opacity = Math.max(0, t.life / 0.07);
         if (t.life <= 0) t.line.visible = false;
+      }
+    }
+
+    for (const e of this.explosions) {
+      if (e.life > 0) {
+        e.life -= dt;
+        const k = Math.max(0, e.life / e.maxLife);
+        e.s.material.opacity = k;
+        const sc = e.radius * 4.2 * (0.5 + (1 - k) * 2.2);
+        e.s.scale.set(sc, sc, 1);
+        if (e.life <= 0) e.s.visible = false;
+      }
+    }
+
+    for (const f of this.flashes) {
+      if (f.life > 0) {
+        f.life -= dt;
+        f.s.material.opacity = Math.max(0, f.life / 0.06);
+        const sc = 0.9 * (1 + (1 - f.life / 0.06) * 1.5);
+        f.s.scale.set(sc, sc, 1);
+        if (f.life <= 0) f.s.visible = false;
+      }
+    }
+
+    // flammes napalm : rafraîchissement continu tant que la flamme existe
+    this.napalmT += dt;
+    if (firePools && firePools.length) {
+      for (const fp of firePools) {
+        const flick = 0.55 + 0.45 * Math.sin(this.napalmT * 18 + fp.x * 3);
+        const sc = fp.radius * (2.4 + Math.sin(this.napalmT * 9 + fp.z) * 0.25);
+        const p = this.napalmPools.find((p) => p.s.visible);
+        if (p) {
+          p.s.position.set(fp.x, fp.y, fp.z);
+          p.s.material.opacity = flick;
+          p.s.material.color.setRGB(1, 0.35 + 0.2 * flick, 0.05);
+          p.s.scale.set(sc, sc * 0.55, 1);
+        }
       }
     }
 
@@ -149,6 +275,7 @@ export class EffectsView {
   clear() {
     for (const t of this.tracers) { t.life = 0; t.line.visible = false; }
     for (const d of this.decals) { d.life = 0; d.m.visible = false; }
+    for (const p of this.napalmPools) p.s.visible = false;
     this.bloods.length = 0;
     this.bloodPoints.geometry.setDrawRange(0, 0);
   }

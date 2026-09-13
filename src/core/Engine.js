@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PostProc } from './PostProc.js';
 
 export class Engine {
   constructor(canvas) {
@@ -10,12 +11,12 @@ export class Engine {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.toneMappingExposure = 1.12;
 
     this.scene = new THREE.Scene();
-    const bg = new THREE.Color(0x04060a);
+    const bg = new THREE.Color(0xa9bcc9);
     this.scene.background = bg;
-    this.scene.fog = new THREE.FogExp2(bg.getHex(), 0.021);
+    this.scene.fog = new THREE.FogExp2(bg.getHex(), 0.011);
 
     this.camera = new THREE.PerspectiveCamera(
       74,
@@ -26,17 +27,23 @@ export class Engine {
     this.camera.rotation.order = 'YXZ';
     this.scene.add(this.camera);
 
+    this.post = new PostProc(this.renderer, this.scene, this.camera, window.innerWidth, window.innerHeight);
+
     this.clock = new THREE.Clock();
     window.addEventListener('resize', () => this.resize());
   }
 
   resize() {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
+    const w = window.innerWidth, h = window.innerHeight;
+    this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setSize(w, h);
+    this.post.resize(w, h);
   }
 
+  step(dt) { this.post.update(dt); }
+
   render() {
-    this.renderer.render(this.scene, this.camera);
+    this.post.render();
   }
 }

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { raySphere } from '../model/Enemy.js';
+import { WEAPONS } from '../model/Weapon.js';
 
 function rayAABB(ox, oy, oz, dx, dy, dz, b) {
   let tmin = -1e9, tmax = 1e9;
@@ -35,14 +36,30 @@ export class WeaponController {
     this.firing = false;
     this.bloom = 0;
     this.time = 0;
+    this.zoomTarget = 0;
+    this.aiming = false;
 
     window.addEventListener('mousedown', (e) => {
       if (e.button === 0 && this.state.status === 'playing' && document.pointerLockElement) {
         this.firing = true;
+      } else if ((e.button === 1 || e.button === 2) && this.state.status === 'playing') {
+        this.aiming = true;
+        this.zoomTarget = 1;
       }
     });
-    window.addEventListener('mouseup', (e) => { if (e.button === 0) this.firing = false; });
-    window.addEventListener('blur', () => { this.firing = false; });
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.firing = false;
+      if (e.button === 1 || e.button === 2) { this.aiming = false; this.zoomTarget = 0; }
+    });
+    window.addEventListener('contextmenu', (e) => { if (document.pointerLockElement) e.preventDefault(); });
+    window.addEventListener('blur', () => { this.firing = false; this.aiming = false; this.zoomTarget = 0; });
+
+    window.addEventListener('wheel', (e) => {
+      if (this.state.status !== 'playing' || !document.pointerLockElement) return;
+      const w = this.state.player;
+      if (e.deltaY > 0) w.nextWeapon(); else w.prevWeapon();
+      this.bus.emit('weaponSwitch');
+    }, { passive: true });
 
     bus.on('reloadRequest', () => {
       if (this.state.status !== 'playing') return;
@@ -59,25 +76,40 @@ export class WeaponController {
       this.bus.emit('reloadEnd');
     }
 
+    // zoom in / out
+    const p = this.state.player;
+    p.zoom += (this.zoomTarget - p.zoom) * Math.min(1, dt * 12);
+
     if (this.state.status !== 'playing') return;
+
+    // adjust camera FOV for the scope
+    const cam = this.engine.camera;
+    const targetFov = 74 + (WEAPONS[w.def.id].zoomFov - 74) * p.zoom;
+    cam.fov += (targetFov - cam.fov) * Math.min(1, dt * 14);
+    cam.updateProjectionMatrix();
+
     if (this.firing && w.canFire(time)) this.shoot(time);
     this.bloom = Math.max(0, this.bloom - dt * 0.02);
+    this.rig.mgFiring = this.firing;
   }
 
   shoot(time) {
     const w = this.state.player.weapon;
     const p = this.state.player;
     const cam = this.engine.camera;
-    w.fire(time);
+    if (!w.fire(time)) return;
     cam.updateMatrixWorld();
 
     this.bus.emit('shot');
     this.rig.kick();
-    this.bus.emit('recoil', { pitch: 0.5 });
+    this.bus.emit('recoil', { pitch: 0.5 + (w.def.recoil - 1) * 0.4 });
+
+    if (w.def.kind === 'rocket') { this.launchRocket(time); return; }
+    if (w.def.kind === 'napalm') { this.launchNapalm(time); return; }
 
     const dir = new THREE.Vector3();
     cam.getWorldDirection(dir);
-    const spread = 0.004 + this.bloom + p.speed * 0.004;
+    const spread = w.def.spread * (1 - 0.8 * p.zoom) + this.bloom + p.speed * 0.004;
     this.bloom = Math.min(0.03, this.bloom + 0.004);
     dir.x += (Math.random() * 2 - 1) * spread;
     dir.y += (Math.random() * 2 - 1) * spread;
@@ -116,7 +148,7 @@ export class WeaponController {
     this.bus.emit('tracer', { a: muzzle, b: end });
 
     if (hitEnemy) {
-      const dmg = head ? w.damage * w.headshotMult : w.damage;
+      const dmg = head ? w.def.damage * w.def.headshotMult : w.def.damage;
       const killed = hitEnemy.damage(dmg);
       this.state.score += head ? 20 : 10;
       if (killed) {
@@ -127,5 +159,35 @@ export class WeaponController {
     } else if (wallT < Infinity) {
       this.bus.emit('impact', { pos: end, normal });
     }
+  }
+
+  launchRocket(time) {
+    const cam = this.engine.camera;
+    const dir = new THREE.Vector3();
+    cam.getWorldDirection(dir);
+    const muzzle = this.rig.getMuzzleWorld();
+    const w = this.state.player.weapon;
+    this.state.projectiles.push({
+      x: muzzle.x, y: muzzle.y, z: muzzle.z,
+      dx: dir.x, dy: dir.y, dz: dir.z,
+      life: 3.0, dmg: w.def.damage, radius: w.def.aoeradius, trail: 0
+    });
+    this.bus.emit('rocketLaunch', { a: { x: muzzle.x, y: muzzle.y, z: muzzle.z } });
+  }
+
+  launchNapalm(time) {
+    const cam = this.engine.camera;
+    const dir = new THREE.Vector3();
+    cam.getWorldDirection(dir);
+    const muzzle = this.rig.getMuzzleWorld();
+    const w = this.state.player.weapon;
+    // légèrement arqué pour poser la bombe un peu en avant
+    this.state.projectiles.push({
+      x: muzzle.x, y: muzzle.y, z: muzzle.z,
+      dx: dir.x, dy: dir.y + 0.05, dz: dir.z,
+      life: 2.4, dmg: 0, radius: w.def.poolRadius, trail: 0,
+      napalm: true, poolLife: w.def.poolLife, dmgPerSec: w.def.dmgPerSec
+    });
+    this.bus.emit('napalmLaunch', { x: muzzle.x, y: muzzle.y, z: muzzle.z });
   }
 }

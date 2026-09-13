@@ -5,6 +5,8 @@ export class Enemy {
     this.hp = opts.hp;
     this.speed = opts.speed;
     this.dmg = opts.damage;
+    this.armed = !!opts.armed;
+    this.fireRate = opts.fireRate || 0;
     this.pos = { x: 0, y: -1.2, z: 0 };
     this.yaw = 0;
     this.state = 'spawn';

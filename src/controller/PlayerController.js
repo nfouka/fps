@@ -1,14 +1,5 @@
-const EYE = 1.65;
-const STAIR_Z = 27;
-const STAIR_HALF = 1.6;
-
-function groundY(x, z) {
-  const ax = Math.abs(x);
-  if (ax <= 4) return 0;
-  if (ax >= 6) return -1.2;
-  if (Math.abs(Math.abs(z) - STAIR_Z) <= STAIR_HALF) return -((ax - 4) / 2) * 1.2;
-  return -1.2;
-}
+import { EYE } from '../constants.js';
+import { groundY, BOUNDS } from '../core/Level.js';
 
 export function pushOut(pos, r, cols, who, feetY) {
   for (const b of cols) {
@@ -77,27 +68,22 @@ export class PlayerController {
       const l = Math.hypot(mx, mz);
       mx /= l; mz /= l;
     }
-    const speed = 4.3;
+    const speed = 4.5;
     p.pos.x += mx * speed * dt;
     p.pos.z += mz * speed * dt;
-    p.pos.z = Math.max(-29, Math.min(29, p.pos.z));
+    p.pos.x = Math.max(-BOUNDS.x, Math.min(BOUNDS.x, p.pos.x));
+    p.pos.z = Math.max(-BOUNDS.z, Math.min(BOUNDS.z, p.pos.z));
 
-    let feet = p.pos.y - EYE;
-    const inStair = Math.abs(Math.abs(p.pos.z) - STAIR_Z) <= STAIR_HALF;
-    const ax = Math.abs(p.pos.x);
-    if (inStair) {
-      p.pos.x = Math.max(-7.6, Math.min(7.6, p.pos.x));
-    } else if (feet < -0.3) {
-      if (ax < 4.2) p.pos.x = 4.2 * (p.pos.x < 0 ? -1 : 1);
-      p.pos.x = Math.max(-7.6, Math.min(7.6, p.pos.x));
-    } else {
-      p.pos.x = Math.max(-3.7, Math.min(3.7, p.pos.x));
-    }
-    pushOut(p.pos, 0.32, this.cols, 'player', feet);
+    pushOut(p.pos, 0.32, this.cols, 'player', p.pos.y - EYE);
+    p.pos.x = Math.max(-BOUNDS.x, Math.min(BOUNDS.x, p.pos.x));
+    p.pos.z = Math.max(-BOUNDS.z, Math.min(BOUNDS.z, p.pos.z));
 
+    // Vertical follows the level height field: fall by gravity, snap onto the
+    // ground so the player climbs ramps and steps down ledges smoothly.
     const gy = groundY(p.pos.x, p.pos.z);
-    p.velY -= 22 * dt;
-    feet += p.velY * dt;
+    p.velY = p.velY === undefined ? 0 : p.velY;
+    p.velY -= 24 * dt;
+    let feet = p.pos.y - EYE + p.velY * dt;
     if (feet <= gy) { feet = gy; p.velY = 0; }
     p.pos.y = feet + EYE;
 

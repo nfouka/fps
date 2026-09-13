@@ -22,8 +22,8 @@ export class Spawner {
 
   startWave(n) {
     this.state.wave = n;
-    this.pending = 4 + n * 2;
-    this.timer = 0.6;
+    this.pending = 10 + n * 5;
+    this.timer = 0.4;
     this.active = true;
     this.inter = 0;
   }
@@ -43,25 +43,28 @@ export class Spawner {
     if (this.pending > 0) {
       this.timer -= dt;
       if (this.timer <= 0) {
-        this.timer = Math.max(0.45, 1.3 - st.wave * 0.07);
+        this.timer = Math.max(0.18, 0.7 - st.wave * 0.03);
         this.spawn(st, bus);
         this.pending--;
       }
     } else if (st.enemies.length === 0) {
       this.active = false;
-      this.inter = 4;
+      this.inter = 2.2;
       bus.emit('waveClear', st.wave);
     }
   }
 
   spawn(st, bus) {
     const t = TUNNELS[(Math.random() * TUNNELS.length) | 0];
-    const hp = 60 + st.wave * 12;
-    const speed = 1.5 + Math.min(1.4, st.wave * 0.12) + Math.random() * 0.3;
+    const armed = Math.random() < Math.min(0.7, 0.25 + st.wave * 0.09);
+    const hp = armed ? 52 + st.wave * 11 : 66 + st.wave * 13;
+    const speed = 1.5 + Math.min(1.7, st.wave * 0.14) + Math.random() * 0.35;
     const e = new Enemy(st.nextEnemyId++, {
       hp,
       speed,
-      damage: 7 + st.wave
+      damage: armed ? 5 + st.wave : 7 + st.wave,
+      armed,
+      fireRate: armed ? 1.1 + Math.random() * 0.7 : 0
     });
     e.pos.x = t.x + (Math.random() * 2 - 1) * 0.8;
     e.pos.z = t.z + (Math.random() * 2 - 1) * 1.2;

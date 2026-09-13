@@ -261,6 +261,20 @@ export function muzzleFlashTexture() {
   return toTexture(c);
 }
 
+export function burstTexture() {
+  const S = 128;
+  const { c, x } = makeCanvas(S);
+  x.clearRect(0, 0, S, S);
+  const g = x.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  g.addColorStop(0, 'rgba(255,240,200,1)');
+  g.addColorStop(0.3, 'rgba(255,150,50,0.9)');
+  g.addColorStop(0.7, 'rgba(220,70,20,0.4)');
+  g.addColorStop(1, 'rgba(120,20,0,0)');
+  x.fillStyle = g;
+  x.fillRect(0, 0, S, S);
+  return toTexture(c);
+}
+
 export function decalTexture() {
   const S = 64;
   const { c, x } = makeCanvas(S);

@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DEAD LINE — Subway Station FPS</title>
+<link rel="icon" href="data:," />
+<style>
+  :root { --accent: #e8b84a; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: #04060a; color: #dfe6ee;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    user-select: none;
+  }
+  #c { position: fixed; inset: 0; display: block; }
+
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+
+  #crosshair {
+    position: absolute; left: 50%; top: 50%; width: 26px; height: 26px;
+    transform: translate(-50%, -50%); transition: transform 0.2s cubic-bezier(.2,.8,.2,1), opacity 0.2s;
+    filter: drop-shadow(0 0 4px rgba(0,0,0,0.9));
+  }
+  #crosshair span { position: absolute; background: #eaf4ff; box-shadow: 0 0 6px rgba(160,200,255,0.6); border-radius: 1px; }
+  #crosshair .h1 { left: 0; top: 12px; width: 7px; height: 2px; }
+  #crosshair .h2 { right: 0; top: 12px; width: 7px; height: 2px; }
+  #crosshair .v1 { left: 12px; top: 0; width: 2px; height: 7px; }
+  #crosshair .v2 { left: 12px; bottom: 0; width: 2px; height: 7px; }
+  #crosshair .dot { left: 50%; top: 50%; width: 3px; height: 3px; border-radius: 50%; transform: translate(-50%, -50%); background: #f4c44a; box-shadow: 0 0 8px rgba(244,196,74,0.9); }
+
+  /* mil-dot scope reticle (visible when zooming) */
+  #reticleZoom {
+    position: absolute; left: 50%; top: 50%; width: 320px; height: 320px;
+    transform: translate(-50%, -50%); opacity: 0; pointer-events: none;
+    transition: opacity 0.22s cubic-bezier(.2,.8,.2,1), transform 0.22s cubic-bezier(.2,.8,.2,1);
+  }
+  #reticleZoom.in { transform: translate(-50%, -50%) scale(0.92); }
+  #reticleZoom .ring {
+    position: absolute; inset: 30px; border: 1.4px solid rgba(220,235,255,0.42);
+    border-radius: 50%; box-shadow: 0 0 18px rgba(90,110,130,0.4), inset 0 0 18px rgba(90,110,130,0.28);
+  }
+  #reticleZoom .hair { position: absolute; background: rgba(210, 230, 250, 0.75); box-shadow: 0 0 4px rgba(0,0,0,0.8); }
+  #reticleZoom .hair.v { left: 50%; top: 12px; width: 1.4px; height: calc(100% - 24px); transform: translateX(-50%); }
+  #reticleZoom .hair.h { top: 50%; left: 12px; height: 1.4px; width: calc(100% - 24px); transform: translateY(-50%); }
+  #reticleZoom .milv { position: absolute; left: 50%; top: 0; width: 24px; height: 100%; transform: translateX(-50%); background-image: repeating-linear-gradient(to bottom, transparent 0 11px, rgba(210,230,250,0.7) 11px 12px, transparent 12px 23px); background-position: center; -webkit-mask-image: linear-gradient(to bottom, transparent 40px, black 41px, black 259px, transparent 260px); mask-image: linear-gradient(to bottom, transparent 40px, black 41px, black 259px, transparent 260px); }
+  #reticleZoom .milh { position: absolute; top: 50%; left: 0; height: 24px; width: 100%; transform: translateY(-50%); background-image: repeating-linear-gradient(to right, transparent 0 11px, rgba(210,230,250,0.7) 11px 12px, transparent 12px 23px); background-position: center; -webkit-mask-image: linear-gradient(to right, transparent 40px, black 41px, black 259px, transparent 260px); mask-image: linear-gradient(to right, transparent 40px, black 41px, black 259px, transparent 260px); }
+  #reticleZoom .dot { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #f4c44a; box-shadow: 0 0 5px rgba(0,0,0,0.9); transform: translate(-50%, -50%); }
+  #reticleZoom .turret { position: absolute; left: 50%; transform: translateX(-50%); font-size: 10px; letter-spacing: 1px; color: rgba(210,230,250,0.85); text-shadow: 0 0 4px #000; font-variant-numeric: tabular-nums; }
+  #reticleZoom .turret.top { top: 8px; }
+  #reticleZoom .turret.bottom { bottom: 8px; }
+  #reticleZoom .range { position: absolute; bottom: 34px; left: 50%; transform: translateX(-50%); font-size: 9px; letter-spacing: 2px; color: rgba(190, 215, 240, 0.75); text-shadow: 0 0 4px #000; }
+
+  #hitmarker {
+    position: absolute; left: 50%; top: 50%; width: 26px; height: 26px;
+    transform: translate(-50%, -50%) rotate(45deg) scale(0.4);
+    opacity: 0; transition: opacity 0.12s, transform 0.14s cubic-bezier(.2,1.4,.4,1);
+  }
+  #hitmarker.show { opacity: 1; transform: translate(-50%, -50%) rotate(45deg) scale(1); }
+  #hitmarker span { position: absolute; background: currentColor; box-shadow: 0 0 6px rgba(0,0,0,0.9); border-radius: 1px; }
+  #hitmarker .a { left: 0; top: 11px; width: 7px; height: 2px; }
+  #hitmarker .b { right: 0; top: 11px; width: 7px; height: 2px; }
+  #hitmarker .c { left: 11px; top: 0; width: 2px; height: 7px; }
+  #hitmarker .d { left: 11px; bottom: 0; width: 2px; height: 7px; }
+
+  #vignette, #lowhp { position: absolute; inset: 0; opacity: 0; transition: opacity 0.3s; }
+  #vignette { background: radial-gradient(ellipse at center, transparent 48%, rgba(120, 0, 0, 0.55) 100%); }
+  #lowhp {
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(140, 0, 0, 0.5) 100%);
+    animation: lowhpPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes lowhpPulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+
+  #topbar { position: absolute; top: 22px; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 30px; font-size: 19px; letter-spacing: 4px; text-shadow: 0 0 10px rgba(0,0,0,0.9); font-variant-numeric: tabular-nums; }
+  #waveLabel { color: var(--accent); font-weight: 600; }
+  #scoreLabel { color: #dfe6ee; opacity: 0.85; }
+
+  #waveBanner {
+    position: absolute; top: 20%; left: 50%; transform: translateX(-50%) scale(0.9);
+    font-size: 48px; letter-spacing: 16px; color: var(--accent); font-weight: 700;
+    text-shadow: 0 0 24px rgba(232,184,74,0.7), 0 2px 20px rgba(0,0,0,0.8);
+    opacity: 0; transition: opacity 0.4s, transform 0.4s cubic-bezier(.2,1.2,.4,1);
+  }
+  #waveBanner.show { opacity: 1; transform: translateX(-50%) scale(1); }
+
+  #bottombar { position: absolute; bottom: 26px; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 32px; }
+  #hpwrap { width: 280px; }
+  #hpbar {
+    width: 100%; height: 12px; background: rgba(10,14,20,0.72);
+    border: 1px solid rgba(220,230,240,0.28); border-radius: 8px; overflow: hidden;
+    box-shadow: inset 0 0 8px rgba(0,0,0,0.6);
+  }
+  #hpFill {
+    height: 100%; width: 100%; background: linear-gradient(90deg, #3f9e4d, #5fce73);
+    transition: width 0.18s cubic-bezier(.2,.8,.2,1);
+    box-shadow: 0 0 12px rgba(72,200,110,0.5); border-radius: 8px;
+  }
+  #hpText {
+    margin-top: 6px; font-size: 13px; letter-spacing: 3px; font-weight: 600;
+    color: #dfe6ee; text-shadow: 0 0 8px rgba(0,0,0,0.9); font-variant-numeric: tabular-nums;
+  }
+  #ammoText {
+    font-size: 40px; letter-spacing: 2px; font-weight: 700; text-shadow: 0 2px 12px rgba(0,0,0,0.9);
+    color: #eef4fa; font-variant-numeric: tabular-nums; line-height: 0.9;
+  }
+  #ammoText span.reserve { font-size: 18px; font-weight: 400; opacity: 0.6; letter-spacing: 1px; }
+  #weaponName {
+    font-size: 12px; letter-spacing: 4px; color: var(--accent); text-shadow: 0 0 10px rgba(232,184,74,0.5);
+    margin-bottom: 6px; font-weight: 600;
+  }
+  #minimap {
+    position: absolute; top: 78px; right: 26px; width: 180px; height: 180px;
+    background: radial-gradient(ellipse at center, rgba(6,10,16,0.6), rgba(4,6,10,0.88));
+    border: 1px solid rgba(220,230,240,0.22); border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6), inset 0 0 24px rgba(0,0,0,0.4);
+    pointer-events: none; backdrop-filter: blur(1px);
+  }
+
+  #brightBox {
+    position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 12px; font-size: 11px; letter-spacing: 3px;
+    opacity: 0.75; text-shadow: 0 0 8px rgba(0,0,0,0.9); font-weight: 600;
+  }
+  #brightBox input { pointer-events: auto; width: 140px; accent-color: var(--accent); }
+
+  .screen {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(3, 5, 9, 0.82); backdrop-filter: blur(6px);
+    text-align: center; animation: screenIn 0.5s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes screenIn { from { opacity: 0; } to { opacity: 1; } }
+  .hidden { display: none !important; }
+  .screen h1 {
+    font-size: 62px; letter-spacing: 18px; color: var(--accent); font-weight: 800;
+    text-shadow: 0 0 36px rgba(232,184,74,0.55), 0 4px 24px rgba(0,0,0,0.8);
+    animation: titleFloat 4s ease-in-out infinite;
+  }
+  @keyframes titleFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  .screen h2 { font-size: 16px; letter-spacing: 8px; color: #8fa2b5; margin-bottom: 38px; font-weight: 400; }
+  .controls { font-size: 14px; line-height: 2.2; color: #b9c6d4; margin-bottom: 34px; letter-spacing: 1px; }
+  .controls b { color: #eef4fa; display: inline-block; min-width: 110px; font-weight: 600; }
+  .screen button {
+    pointer-events: auto; cursor: pointer;
+    background: transparent; color: var(--accent);
+    border: 1.5px solid var(--accent); padding: 16px 54px;
+    font-size: 17px; letter-spacing: 7px; font-weight: 600;
+    transition: transform 0.2s, background 0.25s, box-shadow 0.25s, color 0.25s;
+    box-shadow: 0 0 20px rgba(232,184,74,0.15);
+  }
+  .screen button:hover {
+    background: var(--accent); color: #0a0d12; transform: translateY(-2px);
+    box-shadow: 0 0 34px rgba(232,184,74,0.55);
+  }
+  .sliderRow { display: flex; align-items: center; gap: 14px; margin-bottom: 30px; font-size: 13px; letter-spacing: 2px; color: #b9c6d4; }
+  .sliderRow input { pointer-events: auto; width: 220px; accent-color: var(--accent); }
+  #finalStats { font-size: 22px; letter-spacing: 4px; margin-bottom: 34px; color: #dfe6ee; }
+</style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div id="hud">
+    <div id="crosshair"><span class="h1"></span><span class="h2"></span><span class="v1"></span><span class="v2"></span><span class="dot"></span></div>
+    <div id="reticleZoom">
+      <div class="ring"></div>
+      <div class="hair v"></div>
+      <div class="hair h"></div>
+      <div class="milv"></div>
+      <div class="milh"></div>
+      <span class="turret top"></span>
+      <span class="turret bottom"></span>
+      <span class="range"></span>
+    </div>
+    <div id="hitmarker"><span class="a"></span><span class="b"></span><span class="c"></span><span class="d"></span></div>
+    <div id="vignette"></div>
+    <div id="lowhp"></div>
+    <div id="topbar">
+      <span id="waveLabel">VAGUE 0</span>
+      <span id="scoreLabel">SCORE 0</span>
+    </div>
+    <div id="waveBanner"></div>
+    <div id="bottombar">
+      <div id="hpwrap">
+        <div id="hpbar"><div id="hpFill"></div></div>
+        <div id="hpText">100</div>
+      </div>
+      <div id="ammoWrap" style="text-align:right;">
+        <div id="weaponName">CARABINE 1911</div>
+        <div id="ammoText">30 / 150</div>
+      </div>
+    </div>
+    <canvas id="minimap" width="180" height="180"></canvas>
+    <div id="brightBox">
+      <span>LUMI&#200;RE</span>
+      <input id="brightSlider" type="range" min="0" max="100" value="60" />
+      <span id="brightVal">60%</span>
+    </div>
+  </div>
+
+  <div id="startScreen" class="screen">
+    <h1>DEAD LINE</h1>
+    <h2>STATION MORGUE&#8209;CENTRALE</h2>
+    <div class="controls">
+      <div><b>WASD</b> déplacement</div>
+      <div><b>Souris</b> viser</div>
+      <div><b>Clic gauche</b> tirer (auto)</div>
+      <div><b>Clic droit</b> viseur (zoom)</div>
+      <div><b>R</b> recharger</div>
+      <div><b>[ / ]</b> luminosit&#233;</div>
+      <div><b>&#201;chap</b> pause</div>
+    </div>
+    <div class="sliderRow">
+      <span>LUMI&#200;RE</span>
+      <input id="startBright" type="range" min="0" max="100" value="60" />
+    </div>
+    <button id="startBtn">ENTRER DANS LA STATION</button>
+  </div>
+
+  <div id="pauseScreen" class="screen hidden">
+    <h1>PAUSE</h1>
+    <h2>LES MORTS ATTENDENT</h2>
+    <div class="sliderRow">
+      <span>LUMI&#200;RE</span>
+      <input id="pauseBright" type="range" min="0" max="100" value="60" />
+    </div>
+    <button id="resumeBtn">REPRENDRE</button>
+  </div>
+
+  <div id="overScreen" class="screen hidden">
+    <h1>INFEST&#201;</h1>
+    <h2>LA STATION VOUS A AVAL&#201;</h2>
+    <div id="finalStats"></div>
+    <button id="restartBtn">R&#201;ESSAYER</button>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

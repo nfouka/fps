@@ -129,4 +129,23 @@ export class SFX {
     this.tone('sine', 80, 40, 0.2, 0.4);
     this.noiseBurst(0.1, 'lowpass', 400, 0.2);
   }
+
+  flame() {
+    if (!this.ok()) return;
+    this.noiseBurst(0.12, 'lowpass', 600 + Math.random() * 200, 0.3, 0.7);
+    this.tone('sawtooth', 130, 70, 0.14, 0.18, 700);
+  }
+
+  splash() {
+    if (!this.ok()) return;
+    this.noiseBurst(0.18, 'lowpass', 320, 0.32);
+    this.tone('sine', 200, 90, 0.16, 0.18, 500);
+  }
+
+  mgFire() {
+    if (!this.ok()) return;
+    // bourdonnement grave qui se superpose = grondement de minigun
+    this.tone('sawtooth', 60 + Math.random() * 20, 45, 0.09, 0.14, 300);
+    this.noiseBurst(0.09, 'bandpass', 500, 0.14, 1.2);
+  }
 }
