@@ -31,6 +31,20 @@ function addNoise(x, w, h, amount) {
   x.putImageData(img, 0, 0);
 }
 
+function roundRect(x, px, py, pw, ph, r) {
+  x.beginPath();
+  x.moveTo(px + r, py);
+  x.lineTo(px + pw - r, py);
+  x.arc(px + pw - r, py + r, r, -Math.PI / 2, 0);
+  x.lineTo(px + pw, py + ph - r);
+  x.arc(px + pw - r, py + ph - r, r, 0, Math.PI / 2);
+  x.lineTo(px + r, py + ph);
+  x.arc(px + r, py + ph - r, r, Math.PI / 2, Math.PI);
+  x.lineTo(px, py + r);
+  x.arc(px + r, py + r, r, Math.PI, Math.PI * 1.5);
+  x.closePath();
+}
+
 export function tileTexture(rx = 1, ry = 1) {
   const S = 512;
   const { c, x } = makeCanvas(S);
@@ -216,6 +230,24 @@ export function signTexture(text) {
   x.font = 'bold 40px Arial';
   x.fillText(text, 292, 66);
   addNoise(x, 512, 128, 8);
+  return toTexture(c);
+}
+
+export function creditTexture(text) {
+  const { c, x } = makeCanvas(512, 120);
+  x.clearRect(0, 0, 512, 120);
+  x.fillStyle = 'rgba(8,12,18,0.82)';
+  roundRect(x, 10, 10, 492, 100, 16);
+  x.fill();
+  x.strokeStyle = 'rgba(232,184,74,0.85)';
+  x.lineWidth = 3;
+  roundRect(x, 10, 10, 492, 100, 16);
+  x.stroke();
+  x.fillStyle = '#eef4fa';
+  x.font = "bold 42px 'Times New Roman', Times, serif";
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  x.fillText(text || 'Développé par Nadir Fouka', 256, 64);
   return toTexture(c);
 }
 

@@ -31,6 +31,16 @@ export class Walls {
       }
     }
 
+    const matCred = new THREE.MeshStandardMaterial({
+      map: P.creditTexture('Développé par Nadir Fouka'), transparent: true, depthWrite: false, roughness: 0.7
+    });
+    for (const sx of [1, -1]) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.85), matCred);
+      m.position.set(sx * 7.93, 4.3, 0);
+      m.rotation.y = sx > 0 ? -Math.PI / 2 : Math.PI / 2;
+      G.add(m);
+    }
+
     for (const sx of [1, -1]) {
       for (const z of [-24, -12, 0, 12, 24]) {
         const tex = P.posterTexture();
