@@ -145,6 +145,57 @@ export function graffitiTexture() {
   return toTexture(c);
 }
 
+const SLOGANS = [
+  'الحرية لنا',
+  'لن نسلم المحطة',
+  'المنطقة محررة',
+  'لا استسلام',
+  'نصر المقاومة',
+  'امضي قدما',
+  'نحن هنا',
+  'الحرية أو الموت',
+  'كلنا للمحطة',
+  'المقاومة ستنتصر'
+];
+
+const ARABIC_FONT = "Tahoma, 'Noto Sans Arabic', 'Arial', sans-serif";
+
+export function arabicSloganTexture(slogan) {
+  const S = 512;
+  const { c, x } = makeCanvas(S, 256);
+  x.clearRect(0, 0, S, 256);
+  const text = slogan || SLOGANS[(Math.random() * SLOGANS.length) | 0];
+  const hue = R(0, 360);
+  for (let k = 0; k < 3; k++) {
+    const g = x.createRadialGradient(S / 2, 128, 0, S / 2, 128, R(110, 210));
+    g.addColorStop(0, `hsla(${hue},80%,50%,0.30)`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g;
+    x.fillRect(0, 0, S, 256);
+  }
+  const maxW = S * 0.92, maxH = 150;
+  let size = 160;
+  x.font = `bold ${size}px ${ARABIC_FONT}`;
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  while (size > 28 && (x.measureText(text).width > maxW || x.measureText(text).height > maxH)) {
+    size -= 4;
+    x.font = `bold ${size}px ${ARABIC_FONT}`;
+  }
+  const tx = S / 2, ty = 128 + size * 0.06;
+  x.strokeStyle = 'rgba(0,0,0,0.9)';
+  x.lineWidth = size * 0.09;
+  x.lineJoin = 'round';
+  x.strokeText(text, tx, ty);
+  x.fillStyle = `hsla(${(hue + 185) % 360},85%,62%,0.95)`;
+  x.fillText(text, tx, ty);
+  x.strokeStyle = `hsla(${hue},92%,78%,0.75)`;
+  x.lineWidth = size * 0.03;
+  x.strokeText(text, tx, ty);
+  addNoise(x, S, 256, 8);
+  return toTexture(c);
+}
+
 export function signTexture(text) {
   const { c, x } = makeCanvas(512, 128);
   x.fillStyle = '#0a2a5e';

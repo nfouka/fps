@@ -59,6 +59,18 @@ export class Walls {
       }
     }
 
+    for (const sx of [1, -1]) {
+      for (const z of [-12, 0, 12]) {
+        const mat = new THREE.MeshStandardMaterial({
+          map: P.arabicSloganTexture(), transparent: true, depthWrite: false, roughness: 0.9
+        });
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.3), mat);
+        m.position.set(sx * 7.94, 2.5, z);
+        m.rotation.y = sx > 0 ? -Math.PI / 2 : Math.PI / 2;
+        G.add(m);
+      }
+    }
+
     const matPipe = new THREE.MeshStandardMaterial({ color: 0x6a7076, metalness: 0.85, roughness: 0.4 });
     const pipeGeo = new THREE.CylinderGeometry(0.09, 0.09, 60, 8);
     for (const sx of [1, -1]) {
