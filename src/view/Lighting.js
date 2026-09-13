@@ -16,7 +16,7 @@ export class Lighting {
 
     const stripGeo = new THREE.BoxGeometry(0.5, 0.06, 2.4);
     for (let z = -24; z <= 24; z += 6) {
-      const l = new THREE.PointLight(0xffe6c0, 24, 17, 1.9);
+      const l = new THREE.PointLight(0xffe6c0, 14, 17, 1.9);
       l.position.set(0, 4.6, z);
       scene.add(l);
       const stripMat = new THREE.MeshStandardMaterial({
